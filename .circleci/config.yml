@@ -7,7 +7,7 @@ executors:
   android-executor:
     docker:
       - image: circleci/android:api-23
-    resource_class: xlarge
+    resource_class: medium
 
 jobs:
   build-library:
