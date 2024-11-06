@@ -3,11 +3,15 @@ version: 2.1
 orbs:
   android: circleci/android@2.5.0
 
+executors:
+  android-executor:
+    docker:
+      - image: circleci/android:api-23
+    resource_class: xlarge
+
 jobs:
   build-library:
-    executor:
-      name: android/android-machine
-      resource-class: xlarge
+    executor: android-executor
     steps:
       - checkout
       - restore_cache:
@@ -23,9 +27,7 @@ jobs:
           key: gradle-cache-{{ checksum "build.gradle" }}
 
   deploy-to-sonatype:
-    executor:
-      name: android/android-machine
-      resource-class: xlarge
+    executor: android-executor
     steps:
       - checkout
       - run:
@@ -47,6 +49,16 @@ jobs:
           name: Publish to Maven
           command: ./gradlew assemble publishToSonatype closeAndReleaseSonatypeStagingRepository
 
+  run-ui-tests:
+    executor: android-executor
+    steps:
+      - checkout
+      - run:
+          name: Run UI Tests
+          command: |
+            sdkmanager --install "system-images;android-23;google_apis;x86"
+            ./gradlew assemble sample:connectedDebugAndroidTest
+
 parameters:
   run-schedule:
     type: boolean
@@ -57,10 +69,8 @@ workflows:
     when:
       not: << pipeline.parameters.run-schedule >>
     jobs:
-      - android/run-ui-tests:
+      - run-ui-tests:
           name: build-and-test
-          system-image: system-images;android-23;google_apis;x86
-          test-command: ./gradlew assemble sample:connectedDebugAndroidTest
           filters:
             tags:
               only: /^[0-9]+.*/
@@ -84,10 +94,8 @@ workflows:
   nightly-snapshot:
     when: << pipeline.parameters.run-schedule >>
     jobs:
-      - android/run-ui-tests:
+      - run-ui-tests:
           name: build-and-test
-          system-image: system-images;android-23;google_apis;x86
-          test-command: ./gradlew assemble sample:connectedDebugAndroidTest
       - deploy-to-sonatype:
           name: Deploy Snapshot to Sonatype
           requires:
