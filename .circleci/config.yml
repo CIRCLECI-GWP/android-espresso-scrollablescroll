@@ -6,7 +6,9 @@ orbs:
 executors:
   android-executor:
     docker:
-      - image: cimg/android:2024.11
+      - image: cimg/android:2024.11 # Updated to latest Android image as of November 2024
+    environment:
+      JDK_VERSION: 11 # Set Java version to 11 to match Gradle requirements
     resource_class: medium
 
 jobs:
@@ -33,11 +35,10 @@ jobs:
       - run:
           name: Define ORG_GRADLE_PROJECT_LIBRARY_VERSION Environment Variable at Runtime
           command: |
-            if [ $CIRCLE_TAG ]
-              then
-                echo 'export ORG_GRADLE_PROJECT_LIBRARY_VERSION=$CIRCLE_TAG' >> $BASH_ENV
-              else
-                echo "export ORG_GRADLE_PROJECT_LIBRARY_VERSION=$(git tag | tail -1)-SNAPSHOT" >> $BASH_ENV
+            if [ $CIRCLE_TAG ]; then
+              echo 'export ORG_GRADLE_PROJECT_LIBRARY_VERSION=$CIRCLE_TAG' >> $BASH_ENV
+            else
+              echo "export ORG_GRADLE_PROJECT_LIBRARY_VERSION=$(git tag | tail -1)-SNAPSHOT" >> $BASH_ENV
             fi
             source $BASH_ENV
       - run:
@@ -54,10 +55,11 @@ jobs:
     steps:
       - checkout
       - run:
+          name: Install Android System Image
+          command: sdkmanager --install "system-images;android-33;google_apis;x86_64"
+      - run:
           name: Run UI Tests
-          command: |
-            sdkmanager --install "system-images;android-23;google_apis;x86"
-            ./gradlew assemble sample:connectedDebugAndroidTest
+          command: ./gradlew assemble sample:connectedDebugAndroidTest
 
 parameters:
   run-schedule:
