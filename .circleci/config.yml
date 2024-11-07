@@ -14,9 +14,17 @@ jobs:
     executor: android-machine-executor
     steps:
       - checkout
+      - restore_cache:
+          keys:
+            - gradle-cache-v1-{{ checksum "build.gradle" }}
+            - gradle-cache-v1-
       - run:
           name: Assemble library
-          command: ./gradlew clean
+          command: ./gradlew clean assemble
+      - save_cache:
+          paths:
+            - ~/.gradle/caches/
+          key: gradle-cache-v1-{{ checksum "build.gradle" }}
 
   deploy-to-sonatype:
     executor: android-machine-executor
@@ -48,21 +56,42 @@ jobs:
     executor: android-machine-executor
     steps:
       - checkout
+      - restore_cache:
+          keys:
+            - android-sdk-v1
       - run:
           name: Set Up Android SDK
           command: |
-            sudo apt-get update
-            sudo apt-get install -y wget unzip
-            wget https://dl.google.com/android/repository/commandlinetools-linux-8512546_latest.zip -O commandlinetools.zip
-            sudo mkdir -p /usr/local/android-sdk/cmdline-tools
-            sudo unzip -q commandlinetools.zip -d /usr/local/android-sdk/cmdline-tools
-            sudo mv /usr/local/android-sdk/cmdline-tools/cmdline-tools /usr/local/android-sdk/cmdline-tools/latest
-            export ANDROID_SDK_ROOT=/usr/local/android-sdk
-            echo 'export ANDROID_SDK_ROOT=/usr/local/android-sdk' >> $BASH_ENV
-            echo 'export PATH=$PATH:$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:$ANDROID_SDK_ROOT/platform-tools' >> $BASH_ENV
-            source $BASH_ENV
-            yes | sdkmanager --licenses || true
-            sdkmanager --install 'platform-tools' 'platforms;android-29' 'build-tools;29.0.3' 'system-images;android-29;google_apis;x86_64'
+            if [ ! -d "/usr/local/android-sdk/platforms/android-29" ]; then
+              sudo apt-get update
+              sudo apt-get install -y wget unzip
+              wget https://dl.google.com/android/repository/commandlinetools-linux-8512546_latest.zip -O commandlinetools.zip
+              sudo mkdir -p /usr/local/android-sdk/cmdline-tools
+              sudo unzip -q commandlinetools.zip -d /usr/local/android-sdk/cmdline-tools
+              sudo mv /usr/local/android-sdk/cmdline-tools/cmdline-tools /usr/local/android-sdk/cmdline-tools/latest
+              export ANDROID_SDK_ROOT=/usr/local/android-sdk
+              echo 'export ANDROID_SDK_ROOT=/usr/local/android-sdk' >> $BASH_ENV
+              echo 'export PATH=$PATH:$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:$ANDROID_SDK_ROOT/platform-tools' >> $BASH_ENV
+              source $BASH_ENV
+              # Accept licenses with periodic output
+              yes | sdkmanager --licenses --sdk_root=$ANDROID_SDK_ROOT &
+              pid=$!
+              SECONDS=0
+              while kill -0 $pid 2>/dev/null; do
+                duration=$SECONDS
+                echo "Accepting licenses... elapsed time: ${duration} seconds"
+                sleep 30
+              done
+              wait $pid || true
+              # Install SDK components
+              sdkmanager --install 'platform-tools' 'platforms;android-29' 'build-tools;29.0.3' 'system-images;android-29;google_apis;x86_64' --sdk_root=$ANDROID_SDK_ROOT
+            else
+              echo "Android SDK already installed."
+            fi
+      - save_cache:
+          paths:
+            - /usr/local/android-sdk
+          key: android-sdk-v1
       - run:
           name: Create AVD
           command: |
