@@ -7,7 +7,7 @@ executors:
   android-machine-executor:
     machine:
       image: ubuntu-2004:2023.07.1
-    resource_class: large # Increased resource class
+    resource_class: large # Adjust based on your plan (options: medium, large, xlarge)
 
 jobs:
   build-library:
@@ -94,11 +94,19 @@ jobs:
             # Change Ownership to Current User
             sudo chown -R $USER:$USER $ANDROID_SDK_ROOT
 
-            # Ensure emulator binary is executable
-            sudo chmod +x $ANDROID_SDK_ROOT/emulator/emulator
-
             # Install SDK Components
             sdkmanager --install 'platform-tools' 'platforms;android-29' 'build-tools;29.0.3' 'emulator' 'system-images;android-29;default;x86_64' --sdk_root=$ANDROID_SDK_ROOT
+
+            # Verify that the emulator binary exists
+            if [ -f "$ANDROID_SDK_ROOT/emulator/emulator" ]; then
+              echo "Emulator binary found."
+            else
+              echo "Emulator binary not found."
+              ls -l $ANDROID_SDK_ROOT/emulator/
+            fi
+
+            # Ensure emulator binary is executable
+            chmod +x $ANDROID_SDK_ROOT/emulator/emulator
       - save_cache:
           paths:
             - /usr/local/android-sdk
