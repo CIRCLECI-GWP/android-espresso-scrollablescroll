@@ -1,13 +1,17 @@
 version: 2.1
 
 orbs:
-  android: circleci/android@2.5.0
+  android: circleci/android@3.0.1
+
+executors:
+  android-executor:
+    docker:
+      - image: cimg/android:2023.07
+    resource_class: xlarge
 
 jobs:
   build-library:
-    executor:
-      name: android/android-machine
-      resource-class: xlarge
+    executor: android-executor
     steps:
       - checkout
       - run:
@@ -15,9 +19,7 @@ jobs:
           command: ./gradlew clean
 
   deploy-to-sonatype:
-    executor:
-      name: android/android-machine
-      resource-class: xlarge
+    executor: android-executor
     steps:
       - checkout
       - run:
@@ -27,39 +29,55 @@ jobs:
             then
               echo 'export ORG_GRADLE_PROJECT_LIBRARY_VERSION=$CIRCLE_TAG' >> $BASH_ENV
             else
-              echo "export ORG_GRADLE_PROJECT_LIBRARY_VERSION=`git tag | tail -1`-SNAPSHOT" >> $BASH_ENV
+              echo "export ORG_GRADLE_PROJECT_LIBRARY_VERSION=$(git tag | tail -1)-SNAPSHOT" >> $BASH_ENV
             fi
             source $BASH_ENV
       - run:
           name: Inject Maven signing key
           command: |
-            echo $GPG_SIGNING_KEY \
+            echo "$GPG_SIGNING_KEY" \
               | awk 'NR == 1 { print "SIGNING_KEY=" } 1' ORS='\\n' \
               >> gradle.properties
+          when: always
       - run:
           name: Publish to Maven
           command: ./gradlew assemble publishToSonatype closeAndReleaseSonatypeStagingRepository
 
-parameters:
-  run-schedule:
-    type: boolean
-    default: false
+  run-ui-tests:
+    executor: android-executor
+    steps:
+      - checkout
+      - run:
+          name: Accept Licenses
+          command: yes | sdkmanager --licenses
+      - run:
+          name: Install System Image
+          command: sdkmanager --install 'system-images;android-29;google_apis;x86_64'
+      - run:
+          name: Create AVD
+          command: avdmanager create avd -n test -k 'system-images;android-29;google_apis;x86_64' --force
+      - run:
+          name: Start Emulator
+          command: |
+            emulator -avd test -no-window -no-audio -no-boot-anim -accel off &
+            circle-android wait-for-boot
+      - run:
+          name: Run UI Tests
+          command: ./gradlew sample:connectedDebugAndroidTest
 
 workflows:
   build-test-deploy:
     when:
       not: << pipeline.parameters.run-schedule >>
     jobs:
-      - android/run-ui-tests:
-          system-image: system-images;android-23;google_apis;x86
-          test-command: ./gradlew assemble sample:connectedDebugAndroidTest
+      - run-ui-tests:
           filters:
             tags:
               only: /^[0-9]+.*/
       - hold-for-approval:
           type: approval
           requires:
-            - android/run-ui-tests
+            - run-ui-tests
           filters:
             tags:
               only: /^[0-9]+.*/
@@ -72,14 +90,16 @@ workflows:
           filters:
             tags:
               only: /^[0-9]+.*/
-
   nightly-snapshot:
     when: << pipeline.parameters.run-schedule >>
     jobs:
-      - android/run-ui-tests:
-          system-image: system-images;android-23;google_apis;x86
-          test-command: ./gradlew assemble sample:connectedDebugAndroidTest
+      - run-ui-tests
       - deploy-to-sonatype:
           name: Deploy Snapshot to Sonatype
           requires:
-            - android/run-ui-tests
+            - run-ui-tests
+
+parameters:
+  run-schedule:
+    type: boolean
+    default: false
