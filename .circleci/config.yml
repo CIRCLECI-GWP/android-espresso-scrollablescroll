@@ -6,9 +6,9 @@ orbs:
 executors:
   android-executor:
     docker:
-      - image: cimg/android:2024.11 # Updated to latest Android image as of November 2024
+      - image: cimg/android:2024.11 # Use the latest Android image
     environment:
-      JAVA_HOME: /usr/lib/jvm/java-11-openjdk-amd64 # Explicitly set JAVA_HOME to Java 11
+      JAVA_HOME: /usr/lib/jvm/java-11-openjdk-amd64 # Default to Java 11 for Gradle compatibility
       JDK_VERSION: 11
     resource_class: medium
 
@@ -59,8 +59,18 @@ jobs:
     steps:
       - checkout
       - run:
+          name: Switch to Java 17 for sdkmanager
+          command: |
+            sudo update-alternatives --set java /usr/lib/jvm/java-17-openjdk-amd64/bin/java
+            java -version  # Verify Java 17 is active
+      - run:
           name: Install Android System Image
           command: sdkmanager --install "system-images;android-33;google_apis;x86_64"
+      - run:
+          name: Switch Back to Java 11
+          command: |
+            sudo update-alternatives --set java /usr/lib/jvm/java-11-openjdk-amd64/bin/java
+            java -version  # Verify Java 11 is active again
       - run:
           name: Run UI Tests
           command: ./gradlew assemble sample:connectedDebugAndroidTest
@@ -97,12 +107,4 @@ workflows:
             tags:
               only: /^[0-9]+.*/
 
-  nightly-snapshot:
-    when: << pipeline.parameters.run-schedule >>
-    jobs:
-      - run-ui-tests:
-          name: build-and-test
-      - deploy-to-sonatype:
-          name: Deploy Snapshot to Sonatype
-          requires:
-            - build-and-test
+  nightly-snapshot: wh
