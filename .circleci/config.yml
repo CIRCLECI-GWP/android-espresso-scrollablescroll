@@ -7,7 +7,7 @@ executors:
   android-machine-executor:
     machine:
       image: ubuntu-2004:2023.07.1
-    resource_class: large # Adjust based on your plan (options: medium, large, xlarge)
+    resource_class: xlarge # Increased resource class for more resources
 
 jobs:
   build-library:
@@ -58,13 +58,13 @@ jobs:
       - checkout
       - restore_cache:
           keys:
-            - android-sdk-v4
+            - android-sdk-v5
       - run:
           name: Set Up Java and Android SDK
           command: |
-            # Install Java
+            # Install Java and required libraries
             sudo apt-get update
-            sudo apt-get install -y openjdk-11-jdk wget unzip
+            sudo apt-get install -y openjdk-11-jdk wget unzip libqt5widgets5 libpulse0
             export JAVA_HOME=/usr/lib/jvm/java-11-openjdk-amd64
             echo 'export JAVA_HOME=/usr/lib/jvm/java-11-openjdk-amd64' >> $BASH_ENV
             source $BASH_ENV
@@ -94,28 +94,20 @@ jobs:
             # Change Ownership to Current User
             sudo chown -R $USER:$USER $ANDROID_SDK_ROOT
 
-            # Install SDK Components
-            sdkmanager --install 'platform-tools' 'platforms;android-29' 'build-tools;29.0.3' 'emulator' 'system-images;android-29;default;x86_64' --sdk_root=$ANDROID_SDK_ROOT
-
-            # Verify that the emulator binary exists
-            if [ -f "$ANDROID_SDK_ROOT/emulator/emulator" ]; then
-              echo "Emulator binary found."
-            else
-              echo "Emulator binary not found."
-              ls -l $ANDROID_SDK_ROOT/emulator/
-            fi
+            # Install SDK Components (using API level 28)
+            sdkmanager --install 'platform-tools' 'platforms;android-28' 'build-tools;28.0.3' 'emulator' 'system-images;android-28;default;x86_64' --sdk_root=$ANDROID_SDK_ROOT
 
             # Ensure emulator binary is executable
             chmod +x $ANDROID_SDK_ROOT/emulator/emulator
       - save_cache:
           paths:
             - /usr/local/android-sdk
-          key: android-sdk-v4
+          key: android-sdk-v5
       - run:
           name: Create AVD
           command: |
             source $BASH_ENV
-            avdmanager create avd -n test -k 'system-images;android-29;default;x86_64' --device 'pixel' --force
+            avdmanager create avd -n test -k 'system-images;android-28;default;x86_64' --device 'pixel' --force
       - run:
           name: Start Emulator
           command: |
@@ -123,7 +115,7 @@ jobs:
             emulator -avd test -no-window -no-audio -no-boot-anim -accel off -verbose > emulator.log 2>&1 &
             adb wait-for-device
             boot_completed=""
-            timeout_in_sec=600
+            timeout_in_sec=900  # Increased timeout to 15 minutes
             while [[ "$boot_completed" != "1" && $timeout_in_sec -gt 0 ]]; do
               sleep 5
               timeout_in_sec=$((timeout_in_sec - 5))
@@ -139,11 +131,16 @@ jobs:
           name: Verify Connected Devices
           command: |
             source $BASH_ENV
+            adb kill-server
+            adb start-server
             adb devices
       - run:
           name: Unlock Screen
           command: |
             source $BASH_ENV
+            adb kill-server
+            adb start-server
+            adb devices
             adb shell input keyevent 82
       - run:
           name: Run UI Tests
