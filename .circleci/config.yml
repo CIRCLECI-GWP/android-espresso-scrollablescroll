@@ -7,7 +7,7 @@ executors:
   android-executor:
     docker:
       - image: circleci/android:2022.04.1 # Updated image to compatible version for JDK 11
-    resource_class: medium # Allocate more resources for emulator stability
+    resource_class: xlarge # Allocate more resources for emulator stability
 
 jobs:
   build-library:
