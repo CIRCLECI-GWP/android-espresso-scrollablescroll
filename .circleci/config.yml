@@ -58,36 +58,48 @@ jobs:
       - checkout
       - restore_cache:
           keys:
-            - android-sdk-v2
+            - android-sdk-v3
       - run:
-          name: Set Up Android SDK
+          name: Set Up Java and Android SDK
           command: |
-            if [ ! -d "/usr/local/android-sdk/platforms/android-29" ]; then
-              sudo apt-get update
-              sudo apt-get install -y wget unzip
-              wget https://dl.google.com/android/repository/commandlinetools-linux-8512546_latest.zip -O commandlinetools.zip
-              sudo mkdir -p /usr/local/android-sdk/cmdline-tools
-              sudo unzip -q commandlinetools.zip -d /usr/local/android-sdk/cmdline-tools
-              sudo mv /usr/local/android-sdk/cmdline-tools/cmdline-tools /usr/local/android-sdk/cmdline-tools/latest
-              export ANDROID_SDK_ROOT=/usr/local/android-sdk
-              echo 'export ANDROID_SDK_ROOT=/usr/local/android-sdk' >> $BASH_ENV
-              echo 'export PATH=$PATH:$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:$ANDROID_SDK_ROOT/platform-tools' >> $BASH_ENV
-              source $BASH_ENV
-              # Manually accept licenses using sudo
-              sudo mkdir -p $ANDROID_SDK_ROOT/licenses
-              echo "24333f8a63b6825ea9c5514f83c2829b004d1fee" | sudo tee $ANDROID_SDK_ROOT/licenses/android-sdk-license > /dev/null
-              echo "84831b9409646a918e30573bab4c9c91346d8abd" | sudo tee $ANDROID_SDK_ROOT/licenses/android-sdk-preview-license > /dev/null
-              # Adjust permissions
-              sudo chmod -R a+rx $ANDROID_SDK_ROOT
-              # Install SDK components
-              sdkmanager --install 'platform-tools' 'platforms;android-29' 'build-tools;29.0.3' 'system-images;android-29;google_apis;x86_64' --sdk_root=$ANDROID_SDK_ROOT
-            else
-              echo "Android SDK already installed."
-            fi
+            # Install Java
+            sudo apt-get update
+            sudo apt-get install -y openjdk-11-jdk wget unzip
+            export JAVA_HOME=/usr/lib/jvm/java-11-openjdk-amd64
+            echo 'export JAVA_HOME=/usr/lib/jvm/java-11-openjdk-amd64' >> $BASH_ENV
+            source $BASH_ENV
+
+            # Create .android directory
+            mkdir -p ~/.android
+
+            # Install Android SDK Command-line Tools
+            wget https://dl.google.com/android/repository/commandlinetools-linux-8512546_latest.zip -O commandlinetools.zip
+            sudo mkdir -p /usr/local/android-sdk/cmdline-tools
+            sudo unzip -q commandlinetools.zip -d /usr/local/android-sdk/cmdline-tools
+            sudo mv /usr/local/android-sdk/cmdline-tools/cmdline-tools /usr/local/android-sdk/cmdline-tools/latest
+
+            # Set Environment Variables
+            export ANDROID_SDK_ROOT=/usr/local/android-sdk
+            export ANDROID_HOME=$ANDROID_SDK_ROOT
+            echo 'export ANDROID_SDK_ROOT=/usr/local/android-sdk' >> $BASH_ENV
+            echo 'export ANDROID_HOME=/usr/local/android-sdk' >> $BASH_ENV
+            echo 'export PATH=$PATH:$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:$ANDROID_SDK_ROOT/platform-tools' >> $BASH_ENV
+            source $BASH_ENV
+
+            # Manually Accept Licenses Using sudo
+            sudo mkdir -p $ANDROID_SDK_ROOT/licenses
+            echo "24333f8a63b6825ea9c5514f83c2829b004d1fee" | sudo tee $ANDROID_SDK_ROOT/licenses/android-sdk-license > /dev/null
+            echo "84831b9409646a918e30573bab4c9c91346d8abd" | sudo tee $ANDROID_SDK_ROOT/licenses/android-sdk-preview-license > /dev/null
+
+            # Change Ownership to Current User
+            sudo chown -R $USER:$USER $ANDROID_SDK_ROOT
+
+            # Install SDK Components
+            sdkmanager --install 'platform-tools' 'platforms;android-29' 'build-tools;29.0.3' 'emulator' 'system-images;android-29;google_apis;x86_64' --sdk_root=$ANDROID_SDK_ROOT
       - save_cache:
           paths:
             - /usr/local/android-sdk
-          key: android-sdk-v2
+          key: android-sdk-v3
       - run:
           name: Create AVD
           command: |
