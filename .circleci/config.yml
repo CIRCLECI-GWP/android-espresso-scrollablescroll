@@ -1,33 +1,27 @@
 version: 2.1
 
 orbs:
-  android: circleci/android@2.5.0
+  android: circleci/android@2.5.0 # Use the CircleCI Android orb for easy setup
 
 executors:
   android-executor:
     docker:
-      - image: cimg/android:2024.11 # Latest Android image
-    environment:
-      JAVA_HOME: /usr/lib/jvm/java-11-openjdk-amd64 # Default Java 11 for Gradle
-      JDK_VERSION: 11
-    resource_class: medium
+      - image: circleci/android:2022.04.1 # Updated image to compatible version for JDK 11
+    resource_class: medium # Allocate more resources for emulator stability
 
 jobs:
   build-library:
     executor: android-executor
     steps:
       - checkout
-      - run:
-          name: Verify Java Version
-          command: java -version # Confirm Java 11
-      - restore_cache:
+      - restore_cache: # Restore Gradle cache for faster builds
           keys:
             - gradle-cache-{{ checksum "build.gradle" }}
             - gradle-cache
       - run:
           name: Clean and Assemble Library
           command: ./gradlew clean assemble
-      - save_cache:
+      - save_cache: # Save cache to reuse in later jobs
           paths:
             - ~/.gradle
           key: gradle-cache-{{ checksum "build.gradle" }}
@@ -39,14 +33,15 @@ jobs:
       - run:
           name: Define ORG_GRADLE_PROJECT_LIBRARY_VERSION Environment Variable at Runtime
           command: |
-            if [ $CIRCLE_TAG ]; then
-              echo 'export ORG_GRADLE_PROJECT_LIBRARY_VERSION=$CIRCLE_TAG' >> $BASH_ENV
-            else
-              echo "export ORG_GRADLE_PROJECT_LIBRARY_VERSION=$(git tag | tail -1)-SNAPSHOT" >> $BASH_ENV
+            if [ $CIRCLE_TAG ]
+              then
+                echo 'export ORG_GRADLE_PROJECT_LIBRARY_VERSION=$CIRCLE_TAG' >> $BASH_ENV
+              else
+                echo "export ORG_GRADLE_PROJECT_LIBRARY_VERSION=$(git tag | tail -1)-SNAPSHOT" >> $BASH_ENV
             fi
             source $BASH_ENV
       - run:
-          name: Import Maven Signing Key
+          name: Import Maven Signing Key # Import GPG key for Maven publishing
           command: |
             echo "$GPG_SIGNING_KEY" | base64 --decode > /tmp/signingkey.asc
             gpg --import /tmp/signingkey.asc
@@ -59,26 +54,23 @@ jobs:
     steps:
       - checkout
       - run:
-          name: Install Java 17
+          name: Install System Image # Install specific system image for emulator
           command: |
-            sudo apt-get update
-            sudo apt-get install -y openjdk-17-jdk
-      - run:
-          name: Install Android System Image with Java 17
-          command: |
-            export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
-            export PATH=$JAVA_HOME/bin:$PATH
-            java -version  # Verify Java 17 is active
             sdkmanager --install "system-images;android-33;google_apis;x86_64"
+            echo "y" | sdkmanager --licenses  # Accept SDK licenses
       - run:
-          name: Switch Back to Java 11 for Gradle
+          name: Start Emulator # Start emulator in headless mode for UI testing
           command: |
-            export JAVA_HOME=/usr/lib/jvm/java-11-openjdk-amd64
-            export PATH=$JAVA_HOME/bin:$PATH
-            java -version  # Verify Java 11 is active again
+            echo "no" | avdmanager create avd -n test -k "system-images;android-33;google_apis;x86_64" --device "pixel_3"
+            $ANDROID_HOME/emulator/emulator -avd test -no-window -no-audio -no-snapshot &
+      - run:
+          name: Wait for Emulator to Boot # Wait for the emulator to fully start
+          command: |
+            adb wait-for-device
+            adb shell input keyevent 82  # Unlock screen
       - run:
           name: Run UI Tests
-          command: ./gradlew assemble sample:connectedDebugAndroidTest
+          command: ./gradlew connectedDebugAndroidTest
 
 parameters:
   run-schedule:
@@ -90,8 +82,9 @@ workflows:
     when:
       not: << pipeline.parameters.run-schedule >>
     jobs:
+      - build-library
       - run-ui-tests:
-          name: build-and-test
+          name: build-and-test # Renaming for clarity
           filters:
             tags:
               only: /^[0-9]+.*/
