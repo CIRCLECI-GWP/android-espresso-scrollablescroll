@@ -60,7 +60,14 @@ jobs:
           name: Start Emulator
           command: |
             emulator -avd test -no-window -no-audio -no-boot-anim -accel off &
-            circle-android wait-for-boot
+            adb wait-for-device
+            boot_completed=""
+            until [[ "$boot_completed" == "1" ]]; do
+              sleep 5
+              boot_completed=$(adb shell getprop sys.boot_completed 2>&1 | tr -d '\r')
+              echo "Waiting for emulator to boot..."
+            done
+            echo "Emulator booted successfully!"
       - run:
           name: Run UI Tests
           command: ./gradlew sample:connectedDebugAndroidTest
