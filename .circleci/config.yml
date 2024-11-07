@@ -51,7 +51,7 @@ workflows:
       not: << pipeline.parameters.run-schedule >>
     jobs:
       - android/run-ui-tests:
-          name: build-and-test
+          name: "build-and-test"
           system-image: system-images;android-23;google_apis;x86
           test-command: ./gradlew assemble sample:connectedDebugAndroidTest
           filters:
