@@ -24,10 +24,10 @@ jobs:
           name: Define ORG_GRADLE_PROJECT_LIBRARY_VERSION Environment Variable at Runtime
           command: |
             if [ $CIRCLE_TAG ]
-              then
-                echo 'export ORG_GRADLE_PROJECT_LIBRARY_VERSION=$CIRCLE_TAG' >> $BASH_ENV
-              else
-                echo "export ORG_GRADLE_PROJECT_LIBRARY_VERSION=`git tag | tail -1`-SNAPSHOT" >> $BASH_ENV
+            then
+              echo 'export ORG_GRADLE_PROJECT_LIBRARY_VERSION=$CIRCLE_TAG' >> $BASH_ENV
+            else
+              echo "export ORG_GRADLE_PROJECT_LIBRARY_VERSION=`git tag | tail -1`-SNAPSHOT" >> $BASH_ENV
             fi
             source $BASH_ENV
       - run:
@@ -50,13 +50,13 @@ workflows:
     when:
       not: << pipeline.parameters.run-schedule >>
     jobs:
-      - job: android/run-ui-tests
-        name: build-and-test
-        system-image: system-images;android-23;google_apis;x86
-        test-command: ./gradlew assemble sample:connectedDebugAndroidTest
-        filters:
-          tags:
-            only: /^[0-9]+.*/
+      - build-and-test:
+          job: android/run-ui-tests
+          system-image: system-images;android-23;google_apis;x86
+          test-command: ./gradlew assemble sample:connectedDebugAndroidTest
+          filters:
+            tags:
+              only: /^[0-9]+.*/
       - hold-for-approval:
           type: approval
           requires:
@@ -66,8 +66,8 @@ workflows:
               only: /^[0-9]+.*/
             branches:
               ignore: /.*/
-      - deploy-to-sonatype:
-          name: Deploy to Maven Central
+      - Deploy to Maven Central:
+          job: deploy-to-sonatype
           requires:
             - hold-for-approval
           filters:
@@ -77,11 +77,11 @@ workflows:
   nightly-snapshot:
     when: << pipeline.parameters.run-schedule >>
     jobs:
-      - job: android/run-ui-tests
-        name: build-and-test
-        system-image: system-images;android-23;google_apis;x86
-        test-command: ./gradlew assemble sample:connectedDebugAndroidTest
-      - deploy-to-sonatype:
-          name: Deploy Snapshot to Sonatype
+      - build-and-test:
+          job: android/run-ui-tests
+          system-image: system-images;android-23;google_apis;x86
+          test-command: ./gradlew assemble sample:connectedDebugAndroidTest
+      - Deploy Snapshot to Sonatype:
+          job: deploy-to-sonatype
           requires:
             - build-and-test
