@@ -61,7 +61,8 @@ jobs:
             echo 'export ANDROID_SDK_ROOT=/usr/local/android-sdk' >> $BASH_ENV
             echo 'export PATH=$PATH:$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:$ANDROID_SDK_ROOT/platform-tools' >> $BASH_ENV
             source $BASH_ENV
-            sdkmanager --install 'platform-tools' 'platforms;android-29' 'build-tools;29.0.3' 'system-images;android-29;google_apis;x86_64' --yes
+            yes | sdkmanager --licenses || true
+            sdkmanager --install 'platform-tools' 'platforms;android-29' 'build-tools;29.0.3' 'system-images;android-29;google_apis;x86_64'
       - run:
           name: Create AVD
           command: |
