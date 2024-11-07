@@ -7,7 +7,7 @@ executors:
   android-machine-executor:
     machine:
       image: ubuntu-2004:2023.07.1
-    resource_class: medium # Adjust based on your plan (options: medium, large, xlarge)
+    resource_class: large # Increased resource class
 
 jobs:
   build-library:
@@ -58,7 +58,7 @@ jobs:
       - checkout
       - restore_cache:
           keys:
-            - android-sdk-v3
+            - android-sdk-v4
       - run:
           name: Set Up Java and Android SDK
           command: |
@@ -94,29 +94,32 @@ jobs:
             # Change Ownership to Current User
             sudo chown -R $USER:$USER $ANDROID_SDK_ROOT
 
+            # Ensure emulator binary is executable
+            sudo chmod +x $ANDROID_SDK_ROOT/emulator/emulator
+
             # Install SDK Components
-            sdkmanager --install 'platform-tools' 'platforms;android-29' 'build-tools;29.0.3' 'emulator' 'system-images;android-29;google_apis;x86_64' --sdk_root=$ANDROID_SDK_ROOT
+            sdkmanager --install 'platform-tools' 'platforms;android-29' 'build-tools;29.0.3' 'emulator' 'system-images;android-29;default;x86_64' --sdk_root=$ANDROID_SDK_ROOT
       - save_cache:
           paths:
             - /usr/local/android-sdk
-          key: android-sdk-v3
+          key: android-sdk-v4
       - run:
           name: Create AVD
           command: |
             source $BASH_ENV
-            avdmanager create avd -n test -k 'system-images;android-29;google_apis;x86_64' --device 'pixel' --force
+            avdmanager create avd -n test -k 'system-images;android-29;default;x86_64' --device 'pixel' --force
       - run:
           name: Start Emulator
           command: |
             source $BASH_ENV
-            emulator -avd test -no-window -no-audio -no-boot-anim -accel off &
+            emulator -avd test -no-window -no-audio -no-boot-anim -accel off -verbose > emulator.log 2>&1 &
             adb wait-for-device
             boot_completed=""
             timeout_in_sec=600
             while [[ "$boot_completed" != "1" && $timeout_in_sec -gt 0 ]]; do
               sleep 5
               timeout_in_sec=$((timeout_in_sec - 5))
-              boot_completed=$(adb shell getprop sys.boot_completed 2>&1 | tr -d '\r')
+              boot_completed=$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')
               echo "Waiting for emulator to boot... ($timeout_in_sec seconds left)"
             done
             if [[ "$boot_completed" != "1" ]]; then
@@ -124,6 +127,11 @@ jobs:
               exit 1
             fi
             echo "Emulator booted successfully!"
+      - run:
+          name: Verify Connected Devices
+          command: |
+            source $BASH_ENV
+            adb devices
       - run:
           name: Unlock Screen
           command: |
@@ -134,6 +142,9 @@ jobs:
           command: |
             source $BASH_ENV
             ./gradlew sample:connectedDebugAndroidTest
+      - store_artifacts:
+          path: emulator.log
+          destination: emulator.log
 
 parameters:
   run-schedule:
