@@ -7,7 +7,7 @@ executors:
   android-machine-executor:
     machine:
       image: ubuntu-2004:2023.07.1
-    resource_class: xlarge # Increased resource class for more resources
+    resource_class: large # Adjusted from xlarge to large
 
 jobs:
   build-library:
@@ -58,7 +58,7 @@ jobs:
       - checkout
       - restore_cache:
           keys:
-            - android-sdk-v5
+            - android-sdk-v6
       - run:
           name: Set Up Java and Android SDK
           command: |
@@ -94,25 +94,25 @@ jobs:
             # Change Ownership to Current User
             sudo chown -R $USER:$USER $ANDROID_SDK_ROOT
 
-            # Install SDK Components (using API level 28)
-            sdkmanager --install 'platform-tools' 'platforms;android-28' 'build-tools;28.0.3' 'emulator' 'system-images;android-28;default;x86_64' --sdk_root=$ANDROID_SDK_ROOT
+            # Install SDK Components (using API level 23)
+            sdkmanager --install 'platform-tools' 'platforms;android-23' 'build-tools;23.0.3' 'emulator' 'system-images;android-23;default;x86' --sdk_root=$ANDROID_SDK_ROOT
 
             # Ensure emulator binary is executable
             chmod +x $ANDROID_SDK_ROOT/emulator/emulator
       - save_cache:
           paths:
             - /usr/local/android-sdk
-          key: android-sdk-v5
+          key: android-sdk-v6
       - run:
           name: Create AVD
           command: |
             source $BASH_ENV
-            avdmanager create avd -n test -k 'system-images;android-28;default;x86_64' --device 'pixel' --force
+            avdmanager create avd -n test -k 'system-images;android-23;default;x86' --device 'Nexus 5' --force
       - run:
           name: Start Emulator
           command: |
             source $BASH_ENV
-            emulator -avd test -no-window -no-audio -no-boot-anim -accel off -verbose > emulator.log 2>&1 &
+            emulator -avd test -no-window -no-audio -no-boot-anim -memory 1024 -accel off -verbose > emulator.log 2>&1 &
             adb wait-for-device
             boot_completed=""
             timeout_in_sec=900  # Increased timeout to 15 minutes
@@ -138,9 +138,6 @@ jobs:
           name: Unlock Screen
           command: |
             source $BASH_ENV
-            adb kill-server
-            adb start-server
-            adb devices
             adb shell input keyevent 82
       - run:
           name: Run UI Tests
