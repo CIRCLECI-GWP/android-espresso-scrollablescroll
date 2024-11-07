@@ -107,4 +107,12 @@ workflows:
             tags:
               only: /^[0-9]+.*/
 
-  nightly-snapshot: wh
+  nightly-snapshot:
+    when: << pipeline.parameters.run-schedule >>
+    jobs:
+      - run-ui-tests:
+          name: build-and-test
+      - deploy-to-sonatype:
+          name: Deploy Snapshot to Sonatype
+          requires:
+            - build-and-test
