@@ -7,7 +7,7 @@ executors:
   android-executor:
     docker:
       - image: cimg/android:2023.07
-    resource_class: xlarge
+    resource_class: large # Changed from xlarge to large
 
 jobs:
   build-library:
@@ -65,6 +65,11 @@ jobs:
           name: Run UI Tests
           command: ./gradlew sample:connectedDebugAndroidTest
 
+parameters:
+  run-schedule:
+    type: boolean
+    default: false
+
 workflows:
   build-test-deploy:
     when:
@@ -90,6 +95,7 @@ workflows:
           filters:
             tags:
               only: /^[0-9]+.*/
+
   nightly-snapshot:
     when: << pipeline.parameters.run-schedule >>
     jobs:
@@ -98,8 +104,3 @@ workflows:
           name: Deploy Snapshot to Sonatype
           requires:
             - run-ui-tests
-
-parameters:
-  run-schedule:
-    type: boolean
-    default: false
