@@ -4,14 +4,14 @@ orbs:
   android: circleci/android@3.0.1
 
 executors:
-  android-executor:
-    docker:
-      - image: cimg/android:2023.07
-    resource_class: large # Ensure this resource class is available in your plan
+  android-machine-executor:
+    machine:
+      image: ubuntu-2004:2023.07.1 # Use the latest Ubuntu 20.04 image
+    resource_class: medium # Adjust based on your plan (options: medium, large, xlarge)
 
 jobs:
   build-library:
-    executor: android-executor
+    executor: android-machine-executor
     steps:
       - checkout
       - run:
@@ -19,7 +19,7 @@ jobs:
           command: ./gradlew clean
 
   deploy-to-sonatype:
-    executor: android-executor
+    executor: android-machine-executor
     steps:
       - checkout
       - run:
@@ -44,30 +44,50 @@ jobs:
           command: ./gradlew assemble publishToSonatype closeAndReleaseSonatypeStagingRepository
 
   run-ui-tests:
-    executor: android-executor
+    executor: android-machine-executor
     steps:
       - checkout
       - run:
-          name: Accept Licenses
-          command: yes | sdkmanager --licenses || true
-      - run:
-          name: Install System Image
-          command: sdkmanager --install 'system-images;android-29;google_apis;x86_64'
+          name: Set Up Android SDK
+          command: |
+            sudo apt-get update
+            sudo apt-get install -y wget unzip
+            wget https://dl.google.com/android/repository/commandlinetools-linux-8512546_latest.zip -O commandlinetools.zip
+            sudo mkdir -p /usr/local/android-sdk/cmdline-tools
+            sudo unzip -q commandlinetools.zip -d /usr/local/android-sdk/cmdline-tools
+            sudo mv /usr/local/android-sdk/cmdline-tools/cmdline-tools /usr/local/android-sdk/cmdline-tools/latest
+            export ANDROID_SDK_ROOT=/usr/local/android-sdk
+            echo 'export ANDROID_SDK_ROOT=/usr/local/android-sdk' >> $BASH_ENV
+            echo 'export PATH=$PATH:$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:$ANDROID_SDK_ROOT/platform-tools' >> $BASH_ENV
+            source $BASH_ENV
+            yes | sdkmanager --licenses || true
+            sdkmanager --install 'platform-tools' 'platforms;android-29' 'build-tools;29.0.3' 'system-images;android-29;google_apis;x86_64'
       - run:
           name: Create AVD
-          command: avdmanager create avd -n test -k 'system-images;android-29;google_apis;x86_64' --device 'pixel' --force
+          command: |
+            avdmanager create avd -n test -k 'system-images;android-29;google_apis;x86_64' --device 'pixel' --force
       - run:
           name: Start Emulator
           command: |
-            emulator -avd test -no-window -no-audio -no-boot-anim -accel off &
+            export ANDROID_SDK_ROOT=/usr/local/android-sdk
+            emulator -avd test -no-window -no-audio -no-boot-anim -accel on &
             adb wait-for-device
             boot_completed=""
-            until [[ "$boot_completed" == "1" ]]; do
+            timeout_in_sec=300
+            while [[ "$boot_completed" != "1" && $timeout_in_sec -gt 0 ]]; do
               sleep 5
+              timeout_in_sec=$((timeout_in_sec - 5))
               boot_completed=$(adb shell getprop sys.boot_completed 2>&1 | tr -d '\r')
-              echo "Waiting for emulator to boot..."
+              echo "Waiting for emulator to boot... ($timeout_in_sec seconds left)"
             done
+            if [[ "$boot_completed" != "1" ]]; then
+              echo "Emulator failed to boot within expected time."
+              exit 1
+            fi
             echo "Emulator booted successfully!"
+      - run:
+          name: Unlock Screen
+          command: adb shell input keyevent 82
       - run:
           name: Run UI Tests
           command: ./gradlew sample:connectedDebugAndroidTest
@@ -102,7 +122,6 @@ workflows:
           filters:
             tags:
               only: /^[0-9]+.*/
-
   nightly-snapshot:
     when: << pipeline.parameters.run-schedule >>
     jobs:
