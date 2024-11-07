@@ -58,7 +58,7 @@ jobs:
       - checkout
       - restore_cache:
           keys:
-            - android-sdk-v1
+            - android-sdk-v2
       - run:
           name: Set Up Android SDK
           command: |
@@ -73,16 +73,10 @@ jobs:
               echo 'export ANDROID_SDK_ROOT=/usr/local/android-sdk' >> $BASH_ENV
               echo 'export PATH=$PATH:$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:$ANDROID_SDK_ROOT/platform-tools' >> $BASH_ENV
               source $BASH_ENV
-              # Accept licenses with periodic output
-              yes | sdkmanager --licenses --sdk_root=$ANDROID_SDK_ROOT &
-              pid=$!
-              SECONDS=0
-              while kill -0 $pid 2>/dev/null; do
-                duration=$SECONDS
-                echo "Accepting licenses... elapsed time: ${duration} seconds"
-                sleep 30
-              done
-              wait $pid || true
+              # Manually accept licenses
+              mkdir -p $ANDROID_SDK_ROOT/licenses
+              echo "24333f8a63b6825ea9c5514f83c2829b004d1fee" > $ANDROID_SDK_ROOT/licenses/android-sdk-license
+              echo "84831b9409646a918e30573bab4c9c91346d8abd" > $ANDROID_SDK_ROOT/licenses/android-sdk-preview-license
               # Install SDK components
               sdkmanager --install 'platform-tools' 'platforms;android-29' 'build-tools;29.0.3' 'system-images;android-29;google_apis;x86_64' --sdk_root=$ANDROID_SDK_ROOT
             else
@@ -91,7 +85,7 @@ jobs:
       - save_cache:
           paths:
             - /usr/local/android-sdk
-          key: android-sdk-v1
+          key: android-sdk-v2
       - run:
           name: Create AVD
           command: |
