@@ -1,33 +1,23 @@
 version: 2.1
 
 orbs:
-  android: circleci/android@2.5.0 # Use the CircleCI Android orb for easy setup
-
-executors:
-  android-executor:
-    docker:
-      - image: circleci/android:2022.04.1 # Updated image to compatible version for JDK 11
-    resource_class: medium # Allocate more resources for emulator stability
+  android: circleci/android@1.0.3
 
 jobs:
   build-library:
-    executor: android-executor
+    executor:
+      name: android/android-machine
+      resource-class: xlarge
     steps:
       - checkout
-      - restore_cache: # Restore Gradle cache for faster builds
-          keys:
-            - gradle-cache-{{ checksum "build.gradle" }}
-            - gradle-cache
       - run:
-          name: Clean and Assemble Library
-          command: ./gradlew clean assemble
-      - save_cache: # Save cache to reuse in later jobs
-          paths:
-            - ~/.gradle
-          key: gradle-cache-{{ checksum "build.gradle" }}
+          name: Assemble library
+          command: ./gradlew clean
 
   deploy-to-sonatype:
-    executor: android-executor
+    executor:
+      name: android/android-machine
+      resource-class: xlarge
     steps:
       - checkout
       - run:
@@ -37,40 +27,18 @@ jobs:
               then
                 echo 'export ORG_GRADLE_PROJECT_LIBRARY_VERSION=$CIRCLE_TAG' >> $BASH_ENV
               else
-                echo "export ORG_GRADLE_PROJECT_LIBRARY_VERSION=$(git tag | tail -1)-SNAPSHOT" >> $BASH_ENV
+                echo "export ORG_GRADLE_PROJECT_LIBRARY_VERSION=`git tag | tail -1`-SNAPSHOT" >> $BASH_ENV
             fi
             source $BASH_ENV
       - run:
-          name: Import Maven Signing Key # Import GPG key for Maven publishing
+          name: Inject Maven signing key
           command: |
-            echo "$GPG_SIGNING_KEY" | base64 --decode > /tmp/signingkey.asc
-            gpg --import /tmp/signingkey.asc
+            echo $GPG_SIGNING_KEY \
+              | awk 'NR == 1 { print "SIGNING_KEY=" } 1' ORS='\\n' \
+              >> gradle.properties
       - run:
           name: Publish to Maven
           command: ./gradlew assemble publishToSonatype closeAndReleaseSonatypeStagingRepository
-
-  run-ui-tests:
-    executor: android-executor
-    steps:
-      - checkout
-      - run:
-          name: Install System Image # Install specific system image for emulator
-          command: |
-            sdkmanager --install "system-images;android-33;google_apis;x86_64"
-            echo "y" | sdkmanager --licenses  # Accept SDK licenses
-      - run:
-          name: Start Emulator # Start emulator in headless mode for UI testing
-          command: |
-            echo "no" | avdmanager create avd -n test -k "system-images;android-33;google_apis;x86_64" --device "pixel_3"
-            $ANDROID_HOME/emulator/emulator -avd test -no-window -no-audio -no-snapshot &
-      - run:
-          name: Wait for Emulator to Boot # Wait for the emulator to fully start
-          command: |
-            adb wait-for-device
-            adb shell input keyevent 82  # Unlock screen
-      - run:
-          name: Run UI Tests
-          command: ./gradlew connectedDebugAndroidTest
 
 parameters:
   run-schedule:
@@ -82,9 +50,10 @@ workflows:
     when:
       not: << pipeline.parameters.run-schedule >>
     jobs:
-      - build-library
-      - run-ui-tests:
-          name: build-and-test # Renaming for clarity
+      - android/run-ui-tests:
+          name: build-and-test
+          system-image: system-images;android-23;google_apis;x86
+          test-command: ./gradlew assemble sample:connectedDebugAndroidTest
           filters:
             tags:
               only: /^[0-9]+.*/
@@ -108,8 +77,10 @@ workflows:
   nightly-snapshot:
     when: << pipeline.parameters.run-schedule >>
     jobs:
-      - run-ui-tests:
+      - android/run-ui-tests:
           name: build-and-test
+          system-image: system-images;android-23;google_apis;x86
+          test-command: ./gradlew assemble sample:connectedDebugAndroidTest
       - deploy-to-sonatype:
           name: Deploy Snapshot to Sonatype
           requires:
