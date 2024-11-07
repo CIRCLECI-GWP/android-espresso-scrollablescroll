@@ -50,8 +50,7 @@ workflows:
     when:
       not: << pipeline.parameters.run-schedule >>
     jobs:
-      - build-and-test:
-          job: android/run-ui-tests
+      - android/run-ui-tests:
           system-image: system-images;android-23;google_apis;x86
           test-command: ./gradlew assemble sample:connectedDebugAndroidTest
           filters:
@@ -60,14 +59,14 @@ workflows:
       - hold-for-approval:
           type: approval
           requires:
-            - build-and-test
+            - android/run-ui-tests
           filters:
             tags:
               only: /^[0-9]+.*/
             branches:
               ignore: /.*/
-      - Deploy to Maven Central:
-          job: deploy-to-sonatype
+      - deploy-to-sonatype:
+          name: Deploy to Maven Central
           requires:
             - hold-for-approval
           filters:
@@ -77,11 +76,10 @@ workflows:
   nightly-snapshot:
     when: << pipeline.parameters.run-schedule >>
     jobs:
-      - build-and-test:
-          job: android/run-ui-tests
+      - android/run-ui-tests:
           system-image: system-images;android-23;google_apis;x86
           test-command: ./gradlew assemble sample:connectedDebugAndroidTest
-      - Deploy Snapshot to Sonatype:
-          job: deploy-to-sonatype
+      - deploy-to-sonatype:
+          name: Deploy Snapshot to Sonatype
           requires:
-            - build-and-test
+            - android/run-ui-tests
