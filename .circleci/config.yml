@@ -7,7 +7,7 @@ executors:
   android-executor:
     docker:
       - image: cimg/android:2023.07
-    resource_class: large # Changed from xlarge to large
+    resource_class: large # Ensure this resource class is available in your plan
 
 jobs:
   build-library:
@@ -49,7 +49,7 @@ jobs:
       - checkout
       - run:
           name: Accept Licenses
-          command: yes | sdkmanager --licenses
+          command: yes | sdkmanager --licenses || true
       - run:
           name: Install System Image
           command: sdkmanager --install 'system-images;android-29;google_apis;x86_64'
