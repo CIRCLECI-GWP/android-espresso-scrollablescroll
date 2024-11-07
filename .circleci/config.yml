@@ -83,7 +83,7 @@ jobs:
             export ANDROID_HOME=$ANDROID_SDK_ROOT
             echo 'export ANDROID_SDK_ROOT=/usr/local/android-sdk' >> $BASH_ENV
             echo 'export ANDROID_HOME=/usr/local/android-sdk' >> $BASH_ENV
-            echo 'export PATH=$PATH:$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:$ANDROID_SDK_ROOT/platform-tools' >> $BASH_ENV
+            echo 'export PATH=$PATH:$ANDROID_SDK_ROOT/emulator:$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:$ANDROID_SDK_ROOT/platform-tools' >> $BASH_ENV
             source $BASH_ENV
 
             # Manually Accept Licenses Using sudo
@@ -103,16 +103,16 @@ jobs:
       - run:
           name: Create AVD
           command: |
-            export ANDROID_SDK_ROOT=/usr/local/android-sdk
+            source $BASH_ENV
             avdmanager create avd -n test -k 'system-images;android-29;google_apis;x86_64' --device 'pixel' --force
       - run:
           name: Start Emulator
           command: |
-            export ANDROID_SDK_ROOT=/usr/local/android-sdk
-            emulator -avd test -no-window -no-audio -no-boot-anim -accel on &
+            source $BASH_ENV
+            emulator -avd test -no-window -no-audio -no-boot-anim -accel off &
             adb wait-for-device
             boot_completed=""
-            timeout_in_sec=300
+            timeout_in_sec=600
             while [[ "$boot_completed" != "1" && $timeout_in_sec -gt 0 ]]; do
               sleep 5
               timeout_in_sec=$((timeout_in_sec - 5))
@@ -126,10 +126,14 @@ jobs:
             echo "Emulator booted successfully!"
       - run:
           name: Unlock Screen
-          command: adb shell input keyevent 82
+          command: |
+            source $BASH_ENV
+            adb shell input keyevent 82
       - run:
           name: Run UI Tests
-          command: ./gradlew sample:connectedDebugAndroidTest
+          command: |
+            source $BASH_ENV
+            ./gradlew sample:connectedDebugAndroidTest
 
 parameters:
   run-schedule:
