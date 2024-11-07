@@ -6,7 +6,7 @@ orbs:
 executors:
   android-machine-executor:
     machine:
-      image: ubuntu-2004:2023.07.1 # Use the latest Ubuntu 20.04 image
+      image: ubuntu-2004:2023.07.1
     resource_class: medium # Adjust based on your plan (options: medium, large, xlarge)
 
 jobs:
@@ -38,6 +38,7 @@ jobs:
             echo "$GPG_SIGNING_KEY" \
               | awk 'NR == 1 { print "SIGNING_KEY=" } 1' ORS='\\n' \
               >> gradle.properties
+            source $BASH_ENV
           when: always
       - run:
           name: Publish to Maven
@@ -60,11 +61,11 @@ jobs:
             echo 'export ANDROID_SDK_ROOT=/usr/local/android-sdk' >> $BASH_ENV
             echo 'export PATH=$PATH:$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:$ANDROID_SDK_ROOT/platform-tools' >> $BASH_ENV
             source $BASH_ENV
-            yes | sdkmanager --licenses || true
-            sdkmanager --install 'platform-tools' 'platforms;android-29' 'build-tools;29.0.3' 'system-images;android-29;google_apis;x86_64'
+            sdkmanager --install 'platform-tools' 'platforms;android-29' 'build-tools;29.0.3' 'system-images;android-29;google_apis;x86_64' --yes
       - run:
           name: Create AVD
           command: |
+            export ANDROID_SDK_ROOT=/usr/local/android-sdk
             avdmanager create avd -n test -k 'system-images;android-29;google_apis;x86_64' --device 'pixel' --force
       - run:
           name: Start Emulator
