@@ -8,7 +8,7 @@ executors:
     docker:
       - image: cimg/android:2024.11 # Use the latest Android image
     environment:
-      JAVA_HOME: /usr/lib/jvm/java-11-openjdk-amd64 # Default to Java 11 for Gradle compatibility
+      JAVA_HOME: /usr/lib/jvm/java-11-openjdk-amd64 # Default Java 11 for Gradle compatibility
       JDK_VERSION: 11
     resource_class: medium
 
@@ -59,17 +59,24 @@ jobs:
     steps:
       - checkout
       - run:
-          name: Switch to Java 17 for sdkmanager
+          name: Install Java 17
           command: |
-            sudo update-alternatives --set java /usr/lib/jvm/java-17-openjdk-amd64/bin/java
+            sudo apt-get update
+            sudo apt-get install -y openjdk-17-jdk
+      - run:
+          name: Set JAVA_HOME to Java 17 and Verify
+          command: |
+            export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
+            export PATH=$JAVA_HOME/bin:$PATH
             java -version  # Verify Java 17 is active
       - run:
           name: Install Android System Image
           command: sdkmanager --install "system-images;android-33;google_apis;x86_64"
       - run:
-          name: Switch Back to Java 11
+          name: Switch Back to Java 11 for Gradle
           command: |
-            sudo update-alternatives --set java /usr/lib/jvm/java-11-openjdk-amd64/bin/java
+            export JAVA_HOME=/usr/lib/jvm/java-11-openjdk-amd64
+            export PATH=$JAVA_HOME/bin:$PATH
             java -version  # Verify Java 11 is active again
       - run:
           name: Run UI Tests
