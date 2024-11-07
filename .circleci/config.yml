@@ -8,7 +8,8 @@ executors:
     docker:
       - image: cimg/android:2024.11 # Updated to latest Android image as of November 2024
     environment:
-      JDK_VERSION: 11 # Set Java version to 11 to match Gradle requirements
+      JAVA_HOME: /usr/lib/jvm/java-11-openjdk-amd64 # Explicitly set JAVA_HOME to Java 11
+      JDK_VERSION: 11
     resource_class: medium
 
 jobs:
@@ -16,6 +17,9 @@ jobs:
     executor: android-executor
     steps:
       - checkout
+      - run:
+          name: Verify Java Version
+          command: java -version # Confirm that Java 11 is being used
       - restore_cache:
           keys:
             - gradle-cache-{{ checksum "build.gradle" }}
