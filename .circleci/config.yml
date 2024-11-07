@@ -6,7 +6,7 @@ orbs:
 executors:
   android-machine-executor:
     machine:
-      image: ubuntu-2004:2023.07.1
+      image: android:2023.08.1
     resource_class: large # Adjusted from xlarge to large
 
 jobs:
@@ -56,66 +56,25 @@ jobs:
     executor: android-machine-executor
     steps:
       - checkout
-      - restore_cache:
-          keys:
-            - android-sdk-v6
       - run:
-          name: Set Up Java and Android SDK
+          name: Set Up Environment
           command: |
-            # Install Java and required libraries
             sudo apt-get update
-            sudo apt-get install -y openjdk-11-jdk wget unzip libqt5widgets5 libpulse0
-            export JAVA_HOME=/usr/lib/jvm/java-11-openjdk-amd64
-            echo 'export JAVA_HOME=/usr/lib/jvm/java-11-openjdk-amd64' >> $BASH_ENV
+            sudo apt-get install -y libgl1-mesa-dev libglu1-mesa libxi6 libxrender1 libxtst6 libxcursor1 libxrandr2
             source $BASH_ENV
-
-            # Create .android directory
-            mkdir -p ~/.android
-
-            # Install Android SDK Command-line Tools
-            wget https://dl.google.com/android/repository/commandlinetools-linux-8512546_latest.zip -O commandlinetools.zip
-            sudo mkdir -p /usr/local/android-sdk/cmdline-tools
-            sudo unzip -q commandlinetools.zip -d /usr/local/android-sdk/cmdline-tools
-            sudo mv /usr/local/android-sdk/cmdline-tools/cmdline-tools /usr/local/android-sdk/cmdline-tools/latest
-
-            # Set Environment Variables
-            export ANDROID_SDK_ROOT=/usr/local/android-sdk
-            export ANDROID_HOME=$ANDROID_SDK_ROOT
-            echo 'export ANDROID_SDK_ROOT=/usr/local/android-sdk' >> $BASH_ENV
-            echo 'export ANDROID_HOME=/usr/local/android-sdk' >> $BASH_ENV
-            echo 'export PATH=$PATH:$ANDROID_SDK_ROOT/emulator:$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:$ANDROID_SDK_ROOT/platform-tools' >> $BASH_ENV
-            source $BASH_ENV
-
-            # Manually Accept Licenses Using sudo
-            sudo mkdir -p $ANDROID_SDK_ROOT/licenses
-            echo "24333f8a63b6825ea9c5514f83c2829b004d1fee" | sudo tee $ANDROID_SDK_ROOT/licenses/android-sdk-license > /dev/null
-            echo "84831b9409646a918e30573bab4c9c91346d8abd" | sudo tee $ANDROID_SDK_ROOT/licenses/android-sdk-preview-license > /dev/null
-
-            # Change Ownership to Current User
-            sudo chown -R $USER:$USER $ANDROID_SDK_ROOT
-
-            # Install SDK Components (using API level 23)
-            sdkmanager --install 'platform-tools' 'platforms;android-23' 'build-tools;23.0.3' 'emulator' 'system-images;android-23;default;x86' --sdk_root=$ANDROID_SDK_ROOT
-
-            # Ensure emulator binary is executable
-            chmod +x $ANDROID_SDK_ROOT/emulator/emulator
-      - save_cache:
-          paths:
-            - /usr/local/android-sdk
-          key: android-sdk-v6
       - run:
           name: Create AVD
           command: |
             source $BASH_ENV
-            avdmanager create avd -n test -k 'system-images;android-23;default;x86' --device 'Nexus 5' --force
+            avdmanager create avd -n test -k 'system-images;android-28;default;x86' --device 'Nexus 5' --force
       - run:
           name: Start Emulator
           command: |
             source $BASH_ENV
-            emulator -avd test -no-window -no-audio -no-boot-anim -memory 1024 -accel off -verbose > emulator.log 2>&1 &
+            emulator -avd test -no-window -no-audio -no-boot-anim -memory 1024 -accel off -verbose -show-kernel > emulator.log 2>&1 &
             adb wait-for-device
             boot_completed=""
-            timeout_in_sec=900  # Increased timeout to 15 minutes
+            timeout_in_sec=900
             while [[ "$boot_completed" != "1" && $timeout_in_sec -gt 0 ]]; do
               sleep 5
               timeout_in_sec=$((timeout_in_sec - 5))
@@ -155,8 +114,6 @@ parameters:
 
 workflows:
   build-test-deploy:
-    when:
-      not: << pipeline.parameters.run-schedule >>
     jobs:
       - run-ui-tests:
           filters:
